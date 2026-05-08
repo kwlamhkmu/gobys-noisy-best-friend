@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>gobys-noisy-best-friend Embedding Host</title>
+
+  <!-- Roboto is the typeface the author selected inside Tumult Hype.
+       Hype's exported HTML only declares font-family:"Roboto"; it does
+       NOT bundle the font. We load it here AND inject it into the
+       iframe (see injectRobotoIntoIframe below) so the Hype scene
+       renders in real Roboto instead of a system fallback. -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet"
+        href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&display=swap">
+
+  <style>
+    :root {
+      --toolbar-h: 64px;
+      --bg-0: #0b1020;
+      --bg-1: #0f172a;
+      --line: rgba(148, 163, 184, 0.18);
+      --text: #e2e8f0;
+      --text-dim: #94a3b8;
+      --accent: #6366f1;
+      --accent-2: #8b5cf6;
+      --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.25);
+      --shadow-md: 0 6px 18px rgba(2, 6, 23, 0.45);
+      --font-ui: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto,
+                 "Helvetica Neue", Arial, sans-serif;
+      --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      color: var(--text);
+      font-family: var(--font-ui);
+      background:
+        radial-gradient(1200px 600px at 10% -20%, rgba(99, 102, 241, 0.15), transparent 60%),
+        radial-gradient(900px 500px at 110% 0%, rgba(139, 92, 246, 0.12), transparent 60%),
+        linear-gradient(180deg, var(--bg-0), var(--bg-1));
+    }
+    /* Body lays out as a vertical flex column so the toolbar can wrap
+       to multiple rows (when there are many page buttons) while #stage
+       still fills whatever vertical space is left. */
+    body { display: flex; flex-direction: column; }
+
+    /* ---------- Toolbar ---------- */
+
+    #toolbar {
+      flex: none;
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      column-gap: 14px;
+      row-gap: 10px;
+      padding: 12px 18px;
+      background: rgba(15, 23, 42, 0.72);
+      backdrop-filter: saturate(140%) blur(12px);
+      -webkit-backdrop-filter: saturate(140%) blur(12px);
+      border-bottom: 1px solid var(--line);
+      position: relative;
+      z-index: 20;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-weight: 600;
+      letter-spacing: 0.2px;
+      color: var(--text);
+      padding-right: 6px;
+      white-space: nowrap;
+    }
+    .brand .dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+    }
+
+    .group {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      row-gap: 6px;
+      padding: 4px 6px;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid var(--line);
+      border-radius: 18px; /* less extreme than 999px so wrapped pills look right */
+      box-shadow: var(--shadow-sm);
+      max-width: 100%;
+    }
+    .group .label {
+      font-size: 11px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-dim);
+      padding: 0 10px 0 8px;
+      align-self: center;
+    }
+    /* Page buttons live in their own wrap-friendly row so the Nav group
+       can grow tall when there are many scenes. */
+    #pageButtons {
+      display: inline-flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 6px;
+      row-gap: 6px;
+    }
+
+    .btn {
+      appearance: none;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--text);
+      font: 500 13px/1 var(--font-ui);
+      padding: 8px 14px;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 120ms ease, color 120ms ease,
+                  border-color 120ms ease, transform 80ms ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .btn:hover  { background: rgba(99, 102, 241, 0.12); }
+    .btn:active { transform: translateY(1px); }
+    .btn[aria-pressed="true"] {
+      background: linear-gradient(135deg, var(--accent), var(--accent-2));
+      color: #fff;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+    }
+
+    .spacer { flex: 1; }
+
+    #status {
+      font: 500 12px/1.2 var(--font-mono);
+      color: var(--text-dim);
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.6);
+      max-width: 360px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ---------- Stage ---------- */
+
+    #stage {
+      position: relative;
+      width: 100%;
+      flex: 1;
+      min-height: 0; /* needed so flex child can scroll instead of overflow */
+      overflow: auto;
+      padding: 24px;
+    }
+
+    /*
+      The iframe always renders at its natural Hype size (2048x1536) and
+      is scaled visually with a CSS transform. The wrapper carries the
+      *visual* (scaled) size so document layout flows correctly.
+    */
+    #frameWrap {
+      position: relative;
+      margin: 0 auto;
+      width: 1024px;   /* visual width  -- updated by JS */
+      height: 768px;   /* visual height -- updated by JS */
+      border-radius: 14px;
+      overflow: hidden;
+      background: #fff;
+      box-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.06) inset,
+        var(--shadow-md);
+      transition: width 180ms ease, height 180ms ease;
+    }
+    #hypeFrame {
+      display: block;
+      border: 0;
+      width: 2048px;   /* intrinsic Hype document size */
+      height: 1536px;
+      transform-origin: top left;
+      transform: scale(0.5);   /* updated by JS */
+      background: #fff;
+    }
+
+    /* ---------- Word lookup popup ----------
+       Lives in the host (appended to <body>), not the iframe, so its size
+       is unaffected by the iframe's CSS scale. JS positions it in viewport
+       coordinates (position: fixed) so it stays visible regardless of how
+       far the user has scrolled #stage. */
+    #lookupPopup {
+      position: fixed;
+      display: none;
+      z-index: 30;
+      min-width: 220px;
+      max-width: 320px;
+      background: #ffffff;
+      color: #1f2937;
+      border: 1px solid rgba(15, 23, 42, 0.12);
+      border-radius: 12px;
+      box-shadow: 0 18px 40px rgba(2, 6, 23, 0.25),
+                  0 2px 6px rgba(2, 6, 23, 0.12);
+      font: 500 13px/1.35 var(--font-ui);
+      overflow: hidden;
+    }
+    #lookupPopup .head {
+      padding: 10px 14px 6px;
+      border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+    }
+    #lookupPopup .label {
+      font-size: 10px;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: #94a3b8;
+    }
+    #lookupPopup .word {
+      font-size: 16px;
+      font-weight: 600;
+      color: #0f172a;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    /* Each action row (link or button) shares one layout. Icons are
+       declared per-row via a data-icon attribute so adding a new action
+       only needs the HTML, not extra CSS. */
+    #lookupPopup .action {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      width: 100%;
+      padding: 10px 14px;
+      color: #1d4ed8;
+      text-decoration: none;
+      font: 500 13px/1.35 var(--font-ui);
+      background: transparent;
+      border: 0;
+      text-align: left;
+      cursor: pointer;
+      transition: background 100ms ease, color 100ms ease;
+    }
+    #lookupPopup .action:hover  { background: rgba(99, 102, 241, 0.08); }
+    #lookupPopup .action:active { background: rgba(99, 102, 241, 0.16); }
+    #lookupPopup .action::before {
+      content: attr(data-icon);
+      font-size: 14px;
+      width: 18px;
+      text-align: center;
+    }
+    #lookupPopup .action.is-confirmed {
+      color: #047857; /* emerald-700 */
+    }
+  </style>
+</head>
+<body>
+  <div id="toolbar">
+    <div class="brand"><span class="dot"></span>gobys-noisy-best-friend Embedding Host</div>
+
+    <div class="group" role="group" aria-label="Navigation">
+      <span class="label">Nav</span>
+      <button class="btn" id="prevBtn">&larr; Prev</button>
+      <button class="btn" id="nextBtn">Next &rarr;</button>
+      <!-- One button per Hype scene is injected here by buildPageButtons(). -->
+      <span id="pageButtons"></span>
+    </div>
+
+    <div class="group" role="group" aria-label="Iframe size">
+      <span class="label">Size</span>
+      <button class="btn" data-size="1024x768"  aria-pressed="true">1024 &times; 768</button>
+      <button class="btn" data-size="1536x1152">1536 &times; 1152</button>
+      <button class="btn" data-size="2048x1536">Original</button>
+    </div>
+
+    <span class="spacer"></span>
+    <span id="status">initializing&hellip;</span>
+  </div>
+
+  <div id="stage">
+    <div id="frameWrap">
+      <iframe id="hypeFrame" src="gobys-noisy-best-friend.html"></iframe>
+    </div>
+  </div>
+
+  <!-- Floating lookup menu shown when the user clicks a word inside the
+       current scene. Position: fixed in viewport coords so the visible
+       popup isn't tied to #stage's scroll position. -->
+  <div id="lookupPopup" role="menu" aria-hidden="true">
+    <div class="head">
+      <span class="label">Word</span>
+      <span class="word"></span>
+    </div>
+    <a class="action" id="lookupTranslate" data-icon="🌐"
+       target="_blank" rel="noopener noreferrer">
+      Look up in Google Translate
+    </a>
+    <!-- Dummy action for visual testing only -- doesn't persist anything. -->
+    <button class="action" id="lookupWordlist" type="button" data-icon="⭐">
+      Add to Wordlist
+    </button>
+  </div>
+
+  <script>
+    /* -------------------------------------------------------------------
+       Embedding host for the Hype-exported gobys-noisy-best-friend.html.
+       Responsibilities right now:
+         - Embed gobys-noisy-best-friend.html in a scalable iframe.
+         - Provide page-level navigation via the Hype API.
+         - Offer 1024x768 / 1536x1152 / Original size presets.
+         - Inject Roboto into the iframe so the Hype scene renders in
+           the typeface the author selected.
+    ------------------------------------------------------------------- */
+
+    const HYPE_DOC_NAME = 'gobys-noisy-best-friend';
+    const HYPE_NATIVE_W = 2048;
+    const HYPE_NATIVE_H = 1536;
+
+    const frame       = document.getElementById('hypeFrame');
+    const frameWrap   = document.getElementById('frameWrap');
+    const status      = document.getElementById('status');
+    const pageButtons = document.getElementById('pageButtons');
+    const lookupPopup    = document.getElementById('lookupPopup');
+    const lookupWordEl   = lookupPopup.querySelector('.word');
+    const lookupAction   = document.getElementById('lookupTranslate');
+    const wordlistAction = document.getElementById('lookupWordlist');
+    const sizeButtons = Array.from(
+      document.querySelectorAll('.btn[data-size]')
+    );
+
+    // Configure the Google Translate lookup. Source language is auto-
+    // detected, target defaults to English; tweak `tl` as needed.
+    const TRANSLATE_TARGET_LANG = 'en';
+
+    let currentScale = 0.5; // matches default 1024x768
+
+    function setStatus(msg) {
+      status.textContent = msg;
+      console.log('[embed]', msg);
+    }
+
+    function getHypeAPI() {
+      const win = frame.contentWindow;
+      if (!win || !win.HYPE || !win.HYPE.documents) return null;
+      return win.HYPE.documents[HYPE_DOC_NAME] || null;
+    }
+
+    function withApi(fn) {
+      const api = getHypeAPI();
+      if (!api) { setStatus('Hype not ready'); return; }
+      fn(api);
+    }
+
+    /**
+     * Apply a visible iframe size by scaling the natural 2048x1536 Hype
+     * document with a CSS transform on the iframe and resizing the wrap
+     * to the scaled dimensions.
+     */
+    function setIframeVisualSize(visW, visH) {
+      const sx = visW / HYPE_NATIVE_W;
+      const sy = visH / HYPE_NATIVE_H;
+      const s  = Math.min(sx, sy); // uniform scale (presets keep aspect ratio)
+      currentScale = s;
+      frame.style.transform = 'scale(' + s + ')';
+      frameWrap.style.width  = visW + 'px';
+      frameWrap.style.height = visH + 'px';
+      setStatus('Size ' + visW + '×' + visH +
+                ' (scale ' + (s * 100).toFixed(0) + '%)');
+    }
+
+    /* -------- Navigation buttons -------- */
+
+    document.getElementById('nextBtn').addEventListener('click', () => {
+      withApi(api => api.showNextScene(api.kSceneTransitionPushRightToLeft));
+    });
+    document.getElementById('prevBtn').addEventListener('click', () => {
+      withApi(api => api.showPreviousScene(api.kSceneTransitionPushLeftToRight));
+    });
+
+    /**
+     * Pick a compact label for a scene button. Strategy:
+     *   - take the part of the scene name after the last "_" / "-",
+     *   - if it's purely numeric, use it as-is (e.g. "Spread_1" -> "1"),
+     *   - otherwise use the tail as-is (e.g. "Spread_Cover" -> "Cover").
+     * Falls back to the 1-based scene index if the name is empty.
+     */
+    function labelForScene(name, idx) {
+      if (!name) return String(idx + 1);
+      const m = name.match(/[_\-]([^_\-]+)$/);
+      const tail = m ? m[1] : name;
+      return tail;
+    }
+
+    /**
+     * Build one button per scene returned by api.sceneNames(). The
+     * underlying scene name is stored on data-scene so the click handler
+     * doesn't depend on label formatting; the visible label is the
+     * compact form chosen by labelForScene().
+     */
+    function buildPageButtons(api) {
+      const names = api.sceneNames();
+      pageButtons.replaceChildren();
+      names.forEach((name, idx) => {
+        const btn = document.createElement('button');
+        btn.className = 'btn';
+        btn.dataset.scene = name;
+        btn.textContent = labelForScene(name, idx);
+        btn.title = name;
+        btn.addEventListener('click', () => {
+          withApi(a => a.showSceneNamed(name, a.kSceneTransitionCrossfade));
+        });
+        pageButtons.appendChild(btn);
+      });
+      updateActivePageButton(api.currentSceneName());
+    }
+
+    /**
+     * Reflect the currently-shown scene as aria-pressed on its button.
+     * Called both after explicit clicks and from a small watcher so that
+     * Prev/Next, scripted scene jumps, or in-scene navigation all stay
+     * visually in sync.
+     */
+    function updateActivePageButton(currentName) {
+      pageButtons.querySelectorAll('button').forEach(b => {
+        b.setAttribute(
+          'aria-pressed',
+          b.dataset.scene === currentName ? 'true' : 'false'
+        );
+      });
+    }
+
+    /* -------- Size buttons -------- */
+
+    function selectSizeButton(btn) {
+      sizeButtons.forEach(b => b.setAttribute('aria-pressed', 'false'));
+      btn.setAttribute('aria-pressed', 'true');
+    }
+
+    sizeButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const [w, h] = btn.dataset.size.split('x').map(Number);
+        setIframeVisualSize(w, h);
+        selectSizeButton(btn);
+        hideLookupPopup();
+      });
+    });
+
+    // The popup is positioned in viewport coords (position: fixed) but
+    // tracks a word inside the iframe. If the user scrolls #stage or
+    // resizes the window after the popup is shown, the word may move,
+    // so hide the popup to avoid it pointing at the wrong spot.
+    document.getElementById('stage').addEventListener(
+      'scroll', hideLookupPopup
+    );
+    window.addEventListener('resize', hideLookupPopup);
+
+    /* -------- Word instrumentation + lookup popup -------- */
+
+    /**
+     * Return a root we can walk to wrap words. Strategy: walk the whole
+     * iframe document body. The TreeWalker filter inside instrumentRect
+     * already skips text already wrapped in .ling-word, so re-walking
+     * is idempotent and cheap; this also means we don't need to track
+     * which scene-specific element is currently visible -- new scene
+     * DOM that Hype materialises lazily is picked up automatically on
+     * the next scene change.
+     */
+    function getInstrumentationRoot() {
+      const innerDoc = frame.contentDocument;
+      return innerDoc ? innerDoc.body : null;
+    }
+
+    /**
+     * Walk every text node inside `rect` and wrap each whitespace-
+     * separated token in a <span class="ling-word">. Whitespace is
+     * preserved as plain text nodes so layout stays identical.
+     * Idempotent: the TreeWalker filter rejects any text node already
+     * inside a .ling-word, so calling this multiple times only does
+     * work for newly-added text (e.g. when Hype materialises a new
+     * scene's DOM on demand).
+     */
+    function instrumentRect(rect) {
+      if (!rect) return;
+      const doc = rect.ownerDocument;
+      // Tags whose text content must NOT be wrapped: scripts, styles,
+      // SVG (wrapping in <span> breaks SVG namespace), and our own
+      // wrapper. Walking past these would mangle the page.
+      const SKIP_TAGS = new Set([
+        'SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE',
+        'SVG', 'CANVAS', 'TEXTAREA', 'INPUT', 'IFRAME', 'OBJECT',
+      ]);
+      const walker = doc.createTreeWalker(
+        rect, NodeFilter.SHOW_TEXT,
+        {
+          acceptNode(n) {
+            if (!n.nodeValue || !n.nodeValue.trim()) {
+              return NodeFilter.FILTER_REJECT;
+            }
+            // Reject any text node sitting inside an unsafe ancestor
+            // (script tags, SVG, etc.) -- walk up a few levels.
+            let p = n.parentNode;
+            while (p && p.nodeType === 1) {
+              if (SKIP_TAGS.has(p.tagName)) return NodeFilter.FILTER_REJECT;
+              if (p.classList && p.classList.contains('ling-word')) {
+                return NodeFilter.FILTER_REJECT;
+              }
+              if (p === rect) break;
+              p = p.parentNode;
+            }
+            return NodeFilter.FILTER_ACCEPT;
+          }
+        }
+      );
+      const nodes = [];
+      let n; while ((n = walker.nextNode())) nodes.push(n);
+
+      let wordCount = 0;
+      nodes.forEach(textNode => {
+        const frag = doc.createDocumentFragment();
+        // Split on whitespace runs but KEEP them so spacing is preserved.
+        const parts = textNode.nodeValue.split(/(\s+)/);
+        parts.forEach(part => {
+          if (part === '') return;
+          if (/^\s+$/.test(part)) {
+            frag.appendChild(doc.createTextNode(part));
+          } else {
+            const span = doc.createElement('span');
+            span.className = 'ling-word';
+            span.textContent = part;
+            frag.appendChild(span);
+            wordCount++;
+          }
+        });
+        textNode.parentNode.replaceChild(frag, textNode);
+      });
+      // Only log when we actually wrapped something new -- the call is
+      // now idempotent and runs on every scene change, so silent no-op
+      // calls are expected.
+      if (wordCount > 0) {
+        console.log('[embed] wrapped ' + wordCount + ' new words');
+      }
+    }
+
+    /**
+     * Wrap any not-yet-wrapped word in the iframe's <body>. Called once
+     * after Hype is ready and again whenever the current scene name
+     * changes (so newly-materialised scene DOM gets picked up). The
+     * retry loop covers the tiny window after a transition where the
+     * new scene's DOM hasn't been inserted yet.
+     */
+    function instrumentCurrentScene(retries = 12) {
+      const api = getHypeAPI();
+      if (!api) return;
+      const root = getInstrumentationRoot();
+      if (!root) {
+        if (retries > 0) {
+          setTimeout(() => instrumentCurrentScene(retries - 1), 80);
+        }
+        return;
+      }
+      ensureWordStylesInIframe();
+      instrumentRect(root);
+      // Retry once more shortly after, because Hype may finish inserting
+      // the new scene's DOM nodes a frame or two after currentSceneName()
+      // already reports the new scene.
+      if (retries > 0) {
+        setTimeout(() => {
+          const r = getInstrumentationRoot();
+          if (r) instrumentRect(r);
+        }, 200);
+      }
+    }
+
+    /**
+     * Position the lookup popup just below the clicked word in viewport
+     * coordinates. The word's getBoundingClientRect is in iframe-viewport
+     * coords; the iframe element itself sits at frame.getBoundingClientRect()
+     * in the host viewport and is CSS-scaled by `currentScale`, so:
+     *   host_x = frame.left + word.left * scale
+     *   host_y = frame.top  + word.top  * scale
+     */
+    function showLookupPopup(word, wordEl) {
+      lookupWordEl.textContent = word;
+      const url = 'https://translate.google.com/' +
+                  '?sl=auto&tl=' + encodeURIComponent(TRANSLATE_TARGET_LANG) +
+                  '&text=' + encodeURIComponent(word) +
+                  '&op=translate';
+      lookupAction.href = url;
+
+      const wRect = wordEl.getBoundingClientRect();
+      const fRect = frame.getBoundingClientRect();
+      const s = currentScale;
+
+      const wordHostLeft   = fRect.left + wRect.left   * s;
+      const wordHostTop    = fRect.top  + wRect.top    * s;
+      const wordHostWidth  = wRect.width  * s;
+      const wordHostHeight = wRect.height * s;
+
+      // Show first (so we can measure) then clamp inside the viewport.
+      lookupPopup.style.display = 'block';
+      lookupPopup.style.left = wordHostLeft + 'px';
+      lookupPopup.style.top  = (wordHostTop + wordHostHeight + 6) + 'px';
+
+      const popRect = lookupPopup.getBoundingClientRect();
+      const vw = document.documentElement.clientWidth;
+      const vh = document.documentElement.clientHeight;
+      let left = wordHostLeft;
+      let top  = wordHostTop + wordHostHeight + 6;
+      if (left + popRect.width > vw - 6) left = vw - popRect.width - 6;
+      if (left < 6) left = 6;
+      if (top + popRect.height > vh - 6) {
+        // Flip above the word if it would overflow the bottom edge.
+        top = wordHostTop - popRect.height - 6;
+        if (top < 6) top = 6;
+      }
+      lookupPopup.style.left = left + 'px';
+      lookupPopup.style.top  = top + 'px';
+      lookupPopup.setAttribute('aria-hidden', 'false');
+
+      // Highlight the active word.
+      try {
+        const innerDoc = frame.contentDocument;
+        innerDoc.querySelectorAll('.ling-word.is-active')
+                .forEach(el => el.classList.remove('is-active'));
+        wordEl.classList.add('is-active');
+      } catch (_) {}
+    }
+
+    function hideLookupPopup() {
+      lookupPopup.style.display = 'none';
+      lookupPopup.setAttribute('aria-hidden', 'true');
+      try {
+        const innerDoc = frame.contentDocument;
+        if (innerDoc) {
+          innerDoc.querySelectorAll('.ling-word.is-active')
+                  .forEach(el => el.classList.remove('is-active'));
+        }
+      } catch (_) {}
+    }
+
+    /**
+     * One-time delegated click handler installed on the iframe document.
+     * Triggers the popup whenever a wrapped word is clicked.
+     */
+    function installIframeClickDelegate() {
+      try {
+        const innerDoc = frame.contentDocument;
+        if (!innerDoc || innerDoc.__lingClickInstalled) return;
+        innerDoc.__lingClickInstalled = true;
+        innerDoc.addEventListener('click', (ev) => {
+          const w = ev.target.closest && ev.target.closest('.ling-word');
+          if (w) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            showLookupPopup(w.textContent, w);
+          } else {
+            hideLookupPopup();
+          }
+        }, true);
+      } catch (e) {
+        console.warn('[embed] could not install iframe click delegate', e);
+      }
+    }
+
+    // Clicking anywhere in the host (outside the popup itself) closes it.
+    // We deliberately ignore clicks whose target is the <iframe> element:
+    // those are the host-side echo of a click that happened *inside* the
+    // iframe document, which is already handled by the delegate above.
+    // Without this guard, the outside-click handler would close the popup
+    // the same tick the iframe handler opened it.
+    document.addEventListener('click', (ev) => {
+      if (ev.target === frame) return;
+      if (!lookupPopup.contains(ev.target)) hideLookupPopup();
+    });
+    window.addEventListener('keydown', (ev) => {
+      if (ev.key === 'Escape') hideLookupPopup();
+    });
+
+    /**
+     * "Add to Wordlist" is a stub for visual testing. It doesn't persist
+     * anything yet; it just briefly flips the button label to "Added!"
+     * so it's obvious the click landed, then closes the popup.
+     */
+    const ORIGINAL_WORDLIST_LABEL = wordlistAction.textContent.trim();
+    wordlistAction.addEventListener('click', () => {
+      const word = lookupWordEl.textContent;
+      console.log('[embed] (dummy) add to wordlist:', word);
+      wordlistAction.classList.add('is-confirmed');
+      wordlistAction.dataset.icon = '✓';
+      wordlistAction.textContent = 'Added "' + word + '"!';
+      setTimeout(() => {
+        wordlistAction.classList.remove('is-confirmed');
+        wordlistAction.dataset.icon = '⭐';
+        wordlistAction.textContent = ORIGINAL_WORDLIST_LABEL;
+        hideLookupPopup();
+      }, 900);
+    });
+
+    /* -------- Roboto injection -------- */
+
+    /**
+     * Hype's exported HTML uses font-family:"Roboto" but never loads the
+     * font itself. Inject the same Google Fonts stylesheet into the
+     * iframe so the Hype scene picks up real Roboto. Without this it
+     * falls back to the platform default (Helvetica/Arial on macOS).
+     */
+    function injectRobotoIntoIframe() {
+      try {
+        const innerDoc = frame.contentDocument;
+        if (!innerDoc || innerDoc.getElementById('embed-roboto')) return;
+        const link = innerDoc.createElement('link');
+        link.id = 'embed-roboto';
+        link.rel = 'stylesheet';
+        link.href = 'https://fonts.googleapis.com/css2?' +
+                    'family=Roboto:wght@300;400;500;700;900&display=swap';
+        innerDoc.head.appendChild(link);
+      } catch (e) {
+        console.warn('[embed] could not inject Roboto into iframe', e);
+      }
+    }
+
+    /* -------- Startup -------- */
+
+    function waitForHype(retries = 80) {
+      const api = getHypeAPI();
+      if (api && typeof api.currentSceneName === 'function') {
+        onHypeReady(api);
+        return;
+      }
+      if (retries <= 0) {
+        setStatus('timed out waiting for Hype');
+        return;
+      }
+      setTimeout(() => waitForHype(retries - 1), 100);
+    }
+
+    function onHypeReady(api) {
+      const names = api.sceneNames();
+      setStatus('Hype ready (doc: ' + HYPE_DOC_NAME +
+                ', ' + names.length + ' scenes, current: ' +
+                api.currentSceneName() + ')');
+
+      injectRobotoIntoIframe();
+      setIframeVisualSize(1024, 768);
+      buildPageButtons(api);
+
+      // Wrap each word in the initial scene as a clickable span so the
+      // user can look it up in Google Translate.
+      installIframeClickDelegate();
+      instrumentCurrentScene();
+
+      // Keep the active page button in sync with whatever Hype is
+      // actually showing -- handles Prev/Next, scripted jumps inside
+      // the scene, etc. Also re-instrument the new scene (Hype lazily
+      // builds each scene's DOM the first time it's visited, so the
+      // word-wrapping has to be re-applied per scene).
+      let lastScene = api.currentSceneName();
+      setInterval(() => {
+        const a = getHypeAPI();
+        if (!a) return;
+        const cur = a.currentSceneName();
+        if (cur !== lastScene) {
+          lastScene = cur;
+          updateActivePageButton(cur);
+          hideLookupPopup();
+          instrumentCurrentScene();
+        }
+      }, 250);
+    }
+
+    frame.addEventListener('load', () => waitForHype());
+    waitForHype();
+  </script>
+</body>
+</html>
